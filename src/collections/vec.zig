@@ -1,7 +1,8 @@
 const std = @import("std");
 
 const Allocator = std.mem.Allocator;
-const RawVec = @import("raw_vec.zig").RawVec;
+const raw_vec = @import("raw_vec.zig");
+const RawVec = raw_vec.RawVec;
 
 /// A contiguous growable array type with heap-allocated contents.
 ///
@@ -17,6 +18,8 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
     return struct {
         buf: MyRawVec,
         len: usize,
+
+        pub const Error = error{InvalidIndex} || raw_vec.Error;
 
         const Self = @This();
 
@@ -61,7 +64,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
         /// std.debug.assert(vec.length() == 10);
         /// std.debug.assert(vec.capacity() == 10);
         /// ```
-        pub fn initWithCapacity(alloc: Allocator, cap: usize) !Self {
+        pub fn initWithCapacity(alloc: Allocator, cap: usize) Error!Self {
             return Self{
                 .buf = try MyRawVec.initWithCapacity(alloc, cap),
                 .len = 0,
@@ -79,21 +82,21 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             return self.buf.capacity();
         }
 
-        pub fn reserve(self: *Self, additional: usize) !void {
+        pub fn reserve(self: *Self, additional: usize) Error!void {
             try self.buf.reserve(self.len, additional);
         }
 
-        pub fn reserveExact(self: *Self, additional: usize) !void {
+        pub fn reserveExact(self: *Self, additional: usize) Error!void {
             try self.buf.reserveExact(self.len, additional);
         }
 
-        pub fn shrinkToFit(self: *Self) !void {
+        pub fn shrinkToFit(self: *Self) Allocator.Error!void {
             if (self.capacity() > self.len) {
                 try self.buf.shrinkToFit(self.len);
             }
         }
 
-        pub fn shrinkTo(self: *Self, min_capacity: usize) !void {
+        pub fn shrinkTo(self: *Self, min_capacity: usize) Error!void {
             if (self.capacity() > min_capacity) {
                 try self.buf.shrinkToFit(std.math.max(self.len, min_capacity));
             }
@@ -117,7 +120,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             self.len = new_len;
         }
 
-        pub fn swapRemove(self: *Self, index: usize) !T {
+        pub fn swapRemove(self: *Self, index: usize) Error!T {
             const len = self.len;
             if (index >= len) {
                 return error.IndexOutOfBounds;
@@ -135,7 +138,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             return value;
         }
 
-        pub fn insert(self: *Self, index: usize, element: T) !void {
+        pub fn insert(self: *Self, index: usize, element: T) Error!void {
             const len = self.len;
 
             if (index > len) {
@@ -155,7 +158,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             ptr[index] = element;
         }
 
-        pub fn remove(self: *Self, index: usize) !T {
+        pub fn remove(self: *Self, index: usize) Error!T {
             const len = self.len;
             if (index >= len) {
                 return error.IndexOutOfBounds;
@@ -198,7 +201,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             self.setLen(original_len - removed_count);
         }
 
-        pub inline fn push(self: *Self, value: T) !void {
+        pub inline fn push(self: *Self, value: T) Error!void {
             if (self.len == self.buf.capacity()) {
                 try self.buf.reserveForPush(1);
             }
@@ -214,11 +217,11 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             };
         }
 
-        pub inline fn append(self: *Self, other: *Self) !void {
+        pub inline fn append(self: *Self, other: *Self) Error!void {
             return self.appendSlice(other.slice());
         }
 
-        pub fn appendSlice(self: *Self, other: []const T) !void {
+        pub fn appendSlice(self: *Self, other: []const T) Error!void {
             try self.reserve(other.len);
             const len = self.len;
 
@@ -250,7 +253,7 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             return self.len == 0;
         }
 
-        pub fn splitOff(self: *Self, at: usize) !Self {
+        pub fn splitOff(self: *Self, at: usize) Error!Self {
             if (at > self.len) {
                 return error.InvalidIndex;
             }
@@ -270,6 +273,27 @@ pub fn Vec(comptime T: type, comptime destructor: ?fn (item: *T) void) type {
             other.setLen(other_len);
 
             return other;
+        }
+
+        fn write(self: *Self, bytes: []const u8) Error!usize {
+            // TODO: Make this better
+            comptime {
+                if (T != u8) {
+                    @compileError("T must be u8 to be able to use this interface");
+                }
+            }
+
+            try self.appendSlice(bytes);
+
+            return bytes.len;
+        }
+
+        const Writer = std.io.Writer(*Self, anyerror, write);
+
+        pub fn writer(self: *Self) Writer {
+            return Writer{
+                .context = self,
+            };
         }
 
         pub fn deinit(self: *Self) void {
@@ -356,7 +380,7 @@ test "vec retain" {
     try std.testing.expectEqualSlices(u8, vec.slice(), &[_]u8{ 2, 4, 6, 8, 10 });
 }
 
-test "vec spitOff" {
+test "vec splitOff" {
     var vec = Vec(u8, null).init(std.testing.allocator);
     defer vec.deinit();
 

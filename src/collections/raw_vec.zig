@@ -2,6 +2,8 @@ const std = @import("std");
 
 const Allocator = std.mem.Allocator;
 
+pub const Error = error{IndexOutOfBounds} || Allocator.Error;
+
 pub fn RawVec(comptime T: type) type {
     return struct {
         ptr: []T,
@@ -22,7 +24,7 @@ pub fn RawVec(comptime T: type) type {
             };
         }
 
-        pub fn initWithCapacity(allocator: Allocator, cap: usize) !Self {
+        pub fn initWithCapacity(allocator: Allocator, cap: usize) Error!Self {
             return Self{
                 .ptr = if (cap == 0) &[_]T{} else try allocator.alloc(T, cap),
                 .alloc = allocator,
@@ -45,7 +47,7 @@ pub fn RawVec(comptime T: type) type {
             return if (@sizeOf(T) == 0) std.math.maxInt(usize) else self.ptr.len;
         }
 
-        pub fn reserve(self: *Self, len: usize, additional: usize) !void {
+        pub fn reserve(self: *Self, len: usize, additional: usize) Error!void {
             @setCold(true);
 
             if (self.needsToGrow(len, additional)) {
@@ -53,17 +55,17 @@ pub fn RawVec(comptime T: type) type {
             }
         }
 
-        pub fn reserveForPush(self: *Self, len: usize) !void {
+        pub fn reserveForPush(self: *Self, len: usize) Error!void {
             try self.growAmortized(len, 1);
         }
 
-        pub fn reserveExact(self: *Self, len: usize, additional: usize) !void {
+        pub fn reserveExact(self: *Self, len: usize, additional: usize) Error!void {
             if (self.needsToGrow(len, additional)) {
                 try self.growExact(len, additional);
             }
         }
 
-        pub fn shrinkToFit(self: *Self, cap: usize) !void {
+        pub fn shrinkToFit(self: *Self, cap: usize) Error!void {
             try self.shrink(cap);
         }
 
@@ -75,7 +77,7 @@ pub fn RawVec(comptime T: type) type {
             self.ptr = ptr[0..cap];
         }
 
-        fn growAmortized(self: *Self, len: usize, additional: usize) !void {
+        fn growAmortized(self: *Self, len: usize, additional: usize) Error!void {
             std.debug.assert(additional > 0);
 
             if (@sizeOf(T) == 0) {
@@ -83,7 +85,7 @@ pub fn RawVec(comptime T: type) type {
             }
 
             // checked_add equivalent :)
-            const required_cap = try std.math.add(usize, len, additional);
+            const required_cap = std.math.add(usize, len, additional) catch unreachable;
 
             const cap1 = std.math.max(self.capacity() * 2, required_cap);
             const cap2 = std.math.max(Self.MIN_NON_ZERO_CAP, cap1);
@@ -92,7 +94,7 @@ pub fn RawVec(comptime T: type) type {
             self.setPtrAndCap(newPtr, cap2);
         }
 
-        fn growExact(self: *Self, len: usize, additional: usize) !void {
+        fn growExact(self: *Self, len: usize, additional: usize) Error!void {
             if (@sizeOf(T) == 0) {
                 return error.Overflow;
             }
@@ -103,7 +105,7 @@ pub fn RawVec(comptime T: type) type {
             self.setPtrAndCap(newPtr, cap);
         }
 
-        fn shrink(self: *Self, cap: usize) !void {
+        fn shrink(self: *Self, cap: usize) Error!void {
             std.debug.assert(cap <= self.capacity());
 
             var ptr = try self.alloc.realloc(self.ptr, cap);
