@@ -90,6 +90,14 @@ pub const Str = struct {
         };
     }
 
+    pub fn first(self: *Self) ?u8 {
+        if (self.isEmpty()) {
+            return null;
+        }
+
+        return self.slice()[0];
+    }
+
     pub inline fn length(self: Self) usize {
         return self._inner.len;
     }
@@ -505,7 +513,6 @@ fn StringExt(comptime Self: type) type {
             const char_pos = self.indexOfChar(char);
 
             while (iterator.next()) |pos| {
-
                 // Make sure char_pos is not valid before we proceed
                 if (char_pos) |p| {
                     if (p < pos) {
@@ -568,22 +575,55 @@ fn StringExt(comptime Self: type) type {
         }
 
         pub inline fn startsWith(self: Self, str: Str) bool {
-            return self.indexOf(str) == @as(usize, 0);
+            if (self.length() < str.length()) {
+                return false;
+            }
+
+            if (str.isEmpty() and !self.isEmpty()) {
+                return false;
+            }
+
+            return self.substring(0, str.length()).equals(str);
         }
 
         pub inline fn endsWith(self: Self, str: Str) bool {
-            return self.indexOf(str) == (self.length() - str.length());
+            if (self.length() < str.length()) {
+                return false;
+            }
+
+            if (str.isEmpty() and !self.isEmpty()) {
+                return false;
+            }
+
+            return self.substring(self.length() - str.length(), self.length()).equals(str);
         }
 
-        // pub inline fn split(self: Self, pattern: Str) SplitIterator {}
+        // pub inline fn split(self: Self, pattern: Str) SplitIterator {
+        //     return Split.init(self, pattern).iterator();
+        // }
 
-        // pub inline fn splitMultiple(self: Self, patterns: []const Str) SplitMultipleIterator {}
+        // pub inline fn splitMultiple(self: Self, patterns: []const Str) SplitMultipleIterator {
+        //     return SplitMultiple.init(self, patterns).iterator();
+        // }
 
-        // pub inline fn splitArg(self: Self, arg: fn (u8) bool) SplitArgIterator {}
+        // pub inline fn splitArg(self: Self, arg: fn (u8) bool) SplitArgIterator {
+        //     return SplitArg.init(self, arg).iterator();
+        // }
 
-        // pub inline fn stripPrefix(self: Self, prefix: Str) Str {}
+        pub inline fn stripPrefix(self: Self, prefix: Str) Str {
+            if (self.startsWith(prefix)) {
+                return self.substring(prefix.length(), self.length());
+            }
+            return self;
+        }
 
-        // pub inline fn stripSuffix(self: Self, suffix: Str) Str {}
+        pub inline fn stripSuffix(self: Self, suffix: Str) Str {
+            if (self.endsWith(suffix)) {
+                return self.substring(0, self.length() - suffix.length());
+            }
+
+            return self;
+        }
     };
 }
 
@@ -709,4 +749,18 @@ test "replacen" {
     var string2 = try str.replacen(std.testing.allocator, Str.init("o"), Str.init("a"), 3);
     defer string2.deinit();
     try std.testing.expect(string2.equalsStr(Str.init("faa fao 123 foo")));
+}
+
+test "stripPrefix" {
+    const str = Str.init("foo:bar");
+    const str2 = str.stripPrefix(Str.init("foo:"));
+    try std.testing.expect(str2.equals(Str.init("bar")));
+    try std.testing.expect(str.stripPrefix(Str.init("bar")).equals(str));
+    try std.testing.expect(Str.init("foofoo").stripPrefix(Str.init("foo")).equals(Str.init("foo")));
+}
+
+test "stripSuffix" {
+    try std.testing.expect(Str.init("bar:foo").stripSuffix(Str.init(":foo")).equals(Str.init("bar")));
+    try std.testing.expect(Str.init("bar:foo").stripSuffix(Str.init("bar")).equals(Str.init("bar:foo")));
+    try std.testing.expect(Str.init("foofoo").stripSuffix(Str.init("foo")).equals(Str.init("foo")));
 }

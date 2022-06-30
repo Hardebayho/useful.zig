@@ -3,7 +3,8 @@ const main = @import("../main.zig");
 
 const Allocator = std.mem.Allocator;
 
-const StringVec = main.collections.Vec(u8, null);
+const Str = main.Str;
+const String = main.String;
 
 pub fn Pair(comptime F: type, comptime S: type) type {
     return struct {
@@ -20,8 +21,8 @@ pub fn Pair(comptime F: type, comptime S: type) type {
         }
 
         /// # NOTE: Remember to call `deinit`
-        pub fn initFromJson(json: []const u8, options: std.json.ParseOptions) !Self {
-            var self = try std.json.parse(Self, std.json.TokenStream.init(json), options);
+        pub fn initFromJson(json: Str, options: std.json.ParseOptions) !Self {
+            var self = try std.json.parse(Self, std.json.TokenStream.init(json.slice()), options);
             self.options = options;
             return self;
         }

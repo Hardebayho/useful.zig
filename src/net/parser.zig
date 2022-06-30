@@ -51,4 +51,21 @@ pub const Parser = struct {
     fn peekChar(self: *const Self) ?u8 {
         return self._state.first();
     }
+
+    fn readChar(self: *const Self) ?u8 {
+        var char = self.peekChar();
+
+        self._state = self._state.substring(1, self._state.length());
+
+        return char;
+    }
+
+    fn readGivenChar(self: *const Self, target: u8) bool {
+        const fcn = struct {
+            pub fn functn(p: *Self) ?void {
+                // p.readChar()
+            }
+        }.functn;
+        return self.readAtomically(void, fcn);
+    }
 };
