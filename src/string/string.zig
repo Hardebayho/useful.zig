@@ -17,13 +17,13 @@ pub const String = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: Allocator) Self {
+    pub inline fn init(allocator: Allocator) Self {
         return Self{
             ._inner = U8Vec.init(allocator),
         };
     }
 
-    pub fn initFromSlice(allocator: Allocator, buf: []const u8) Error!Self {
+    pub inline fn initFromSlice(allocator: Allocator, buf: []const u8) Error!Self {
         var inner = U8Vec.init(allocator);
 
         // One extra for the null terminator
@@ -39,35 +39,35 @@ pub const String = struct {
         try self._inner.reserveExact(additional);
     }
 
-    pub fn push(self: *Self, item: u8) Error!void {
+    pub inline fn push(self: *Self, item: u8) Error!void {
         try self._inner.push(item);
     }
 
-    pub fn append(self: *Self, buf: []const u8) Error!void {
+    pub inline fn append(self: *Self, buf: []const u8) Error!void {
         try self._inner.appendSlice(buf);
     }
 
-    pub fn deinit(self: *Self) void {
+    pub inline fn deinit(self: *Self) void {
         self._inner.deinit();
     }
 
-    pub fn clone(self: Self) Error!Self {
+    pub inline fn clone(self: Self) Error!Self {
         return Self.initFromSlice(self.allocator, self.slice());
     }
 
-    pub fn length(self: Self) usize {
+    pub inline fn length(self: Self) usize {
         return self._inner.length();
     }
 
-    pub fn slice(self: Self) []const u8 {
+    pub inline fn slice(self: Self) []const u8 {
         return self._inner.slice()[0..self.length()];
     }
 
-    pub fn equals(self: Self, other: Self) bool {
+    pub inline fn equals(self: Self, other: Self) bool {
         return std.mem.eql(u8, self.slice(), other.slice());
     }
 
-    pub fn equalsStr(self: Self, other: Str) bool {
+    pub inline fn equalsStr(self: Self, other: Str) bool {
         return std.mem.eql(u8, self.slice(), other.slice());
     }
 };
@@ -78,19 +78,19 @@ pub const Str = struct {
 
     const Self = @This();
 
-    pub fn init(data: []const u8) Self {
+    pub inline fn init(data: []const u8) Self {
         return Self{
             ._inner = data,
         };
     }
 
-    pub fn initFromRaw(ptr: [*]const u8, len: usize) Self {
+    pub inline fn initFromRaw(ptr: [*]const u8, len: usize) Self {
         return Self{
             ._inner = ptr[0..len :0],
         };
     }
 
-    pub fn first(self: *Self) ?u8 {
+    pub inline fn first(self: *Self) ?u8 {
         if (self.isEmpty()) {
             return null;
         }
@@ -478,9 +478,9 @@ fn StringExt(comptime Self: type) type {
 
             // Find the first char in what
             // Then see if it matches the rest of the slice
-            var iterator: IndexOfCharIterator = self.indexOfCharIterate(what.charAt(0).?);
+            var iter: IndexOfCharIterator = self.indexOfCharIterate(what.charAt(0).?);
 
-            while (iterator.next()) |pos| {
+            while (iter.next()) |pos| {
                 var temp = values[pos..];
 
                 // We don't have enough, so don't even bother to check
@@ -507,12 +507,12 @@ fn StringExt(comptime Self: type) type {
 
             // Find the first char in what
             // Then see if it matches the rest of the slice
-            var iterator: IndexOfCharIterator = self.indexOfCharIterate(what.charAt(0).?);
+            var iter: IndexOfCharIterator = self.indexOfCharIterate(what.charAt(0).?);
 
             // Check the char first
             const char_pos = self.indexOfChar(char);
 
-            while (iterator.next()) |pos| {
+            while (iter.next()) |pos| {
                 // Make sure char_pos is not valid before we proceed
                 if (char_pos) |p| {
                     if (p < pos) {
@@ -623,6 +623,26 @@ fn StringExt(comptime Self: type) type {
             }
 
             return self;
+        }
+
+        const Iter = struct {
+            value: Str,
+            idx: usize = 0,
+            pub fn next(me: *@This()) ?u8 {
+                if (me.idx >= me.value.length()) {
+                    return null;
+                }
+
+                const char = me.value.charAt(me.idx);
+
+                me.idx += 1;
+
+                return char;
+            }
+        };
+
+        pub inline fn iterator(self: Self) Iterator(Iter, u8) {
+            return Iterator(Iter, u8).init(&(Iter{ .value = self }));
         }
     };
 }
