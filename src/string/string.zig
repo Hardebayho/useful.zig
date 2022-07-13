@@ -70,6 +70,14 @@ pub const String = struct {
     pub inline fn equalsStr(self: Self, other: Str) bool {
         return std.mem.eql(u8, self.slice(), other.slice());
     }
+
+    pub inline fn toStr(self: Self) Str {
+        return Str.init(self._inner.slice());
+    }
+
+    pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        try self.toStr().format(fmt, options, writer);
+    }
 };
 
 /// An immutable wrapper for a C String
@@ -88,6 +96,20 @@ pub const Str = struct {
         return Self{
             ._inner = ptr[0..len :0],
         };
+    }
+
+    pub inline fn initFromC(ptr: [*c]const u8) ?Self {
+        if (ptr == null) {
+            return null;
+        }
+
+        var i: usize = 0;
+
+        while (true) : (i += 1) {
+            if (ptr[i] == 0) {
+                return Self.initFromRaw(ptr, i);
+            }
+        }
     }
 
     pub inline fn first(self: *Self) ?u8 {
@@ -188,6 +210,13 @@ pub const Str = struct {
         }
 
         return string;
+    }
+
+    pub fn format(self: Self, comptime fmt: []const u8, options: std.fmt.FormatOptions, writer: anytype) !void {
+        _ = fmt;
+        _ = options;
+
+        try writer.print("{s}", .{self._inner});
     }
 
     pub usingnamespace StringExt(Self);
@@ -396,7 +425,7 @@ fn StringExt(comptime Self: type) type {
         }
 
         pub inline fn cstr(self: Self) ![:0]const u8 {
-            return std.os.toPosixPath(self.slice());
+            return (try std.os.toPosixPath(self.slice()))[0..];
         }
 
         pub inline fn toStr(self: Self) Str {

@@ -323,23 +323,34 @@ test "vec" {
 
 test "vec destructor" {
     const A = struct {
-        value: i32,
+        value: *i32,
+        allocator: Allocator,
 
         const Self = @This();
 
+        pub fn init(allocator: Allocator, value: i32) !Self {
+            var v = try allocator.create(i32);
+            v.* = value;
+
+            return Self{
+                .value = v,
+                .allocator = allocator,
+            };
+        }
+
         pub fn deinit(self: *Self) void {
-            _ = self;
-            std.debug.print(":::Deiniting a:::\n", .{});
+            self.allocator.destroy(self.value);
         }
     };
 
     var vec = Vec(A, A.deinit).init(std.testing.allocator);
     defer vec.deinit();
 
-    try vec.push(A{
-        .value = 30,
-    });
-    try std.testing.expectEqual(vec.length(), 1);
+    try vec.push(try A.init(std.testing.allocator, 30));
+    try vec.push(try A.init(std.testing.allocator, 40));
+    try vec.push(try A.init(std.testing.allocator, 50));
+
+    try std.testing.expectEqual(vec.length(), 3);
 }
 
 test "vec append and append slice" {
